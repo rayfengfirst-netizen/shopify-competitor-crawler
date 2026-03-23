@@ -1,0 +1,22 @@
+# 复制到服务器：sudo cp deploy/spelab.service.example /etc/systemd/system/spelab.service
+# 然后：sudo systemctl daemon-reload && sudo systemctl enable --now spelab
+#
+# 与 myapp 同机时注意：目录用 /opt/spelab，端口 8010，勿改 myapp 的 unit。
+
+[Unit]
+Description=SPELAB Multi-Site Crawler (Flask + Gunicorn)
+After=network.target
+
+[Service]
+Type=simple
+# 若用非 root 运行，取消下一行并改为 ubuntu 等
+User=root
+WorkingDirectory=/opt/spelab
+Environment="PATH=/opt/spelab/.venv/bin"
+# 应用内已通过 python-dotenv 读取 /opt/spelab/.env（勿用 systemd EnvironmentFile 加载含注释的 .env）
+ExecStart=/opt/spelab/.venv/bin/gunicorn -w 2 -b 0.0.0.0:8010 server.app:app
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

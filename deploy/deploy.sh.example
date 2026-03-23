@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# 首次：在服务器复制为 /opt/spelab/deploy.sh && chmod +x /opt/spelab/deploy.sh
+# 以后发布：ssh root@8.218.58.28 'bash /opt/spelab/deploy.sh'
+
+set -e
+cd /opt/spelab
+git pull origin main
+source .venv/bin/activate
+pip install -r requirements-prod.txt
+systemctl restart spelab
+systemctl status spelab --no-pager
