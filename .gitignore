@@ -4,6 +4,9 @@
 data/
 output/
 logs/
+*.log
+.DS_Store
+**/.DS_Store
 __pycache__/
 *.pyc
 .venv/
