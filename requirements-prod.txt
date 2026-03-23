@@ -1,0 +1,3 @@
+# 生产环境依赖（部署到服务器时用）
+-r requirements.txt
+gunicorn>=21.0.0

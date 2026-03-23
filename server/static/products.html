@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>商品列表</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #1a1a1f;
+      --border: #2d2d35;
+      --text: #e8e8ed;
+      --text-muted: #8888a0;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #22c55e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+    h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 0.5rem 0; }
+    .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-block;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn:hover { background: var(--border); }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .site-bar { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+    .site-bar label { color: var(--text-muted); font-size: 0.9rem; }
+    .site-bar select {
+      min-width: 200px;
+      padding: 0.5rem 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    .status { font-size: 0.9rem; color: var(--text-muted); }
+    .status.running { color: var(--success); }
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow-x: auto;
+      overflow-y: visible;
+      max-width: 100%;
+    }
+    .table-wrap table { width: 100%; border-collapse: collapse; min-width: 900px; }
+    .table-wrap th {
+      text-align: left;
+      padding: 0.75rem 0.5rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+    }
+    .table-wrap td {
+      padding: 0.5rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+      vertical-align: top;
+    }
+    .table-wrap tr:last-child td { border-bottom: none; }
+    .table-wrap tr:hover td { background: rgba(255,255,255,0.02); }
+    .col-img { width: 140px; }
+    .col-img img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; background: var(--border); }
+    .col-title-seo, .col-title-product { min-width: 180px; max-width: 380px; white-space: normal; word-break: break-word; }
+    .col-title-seo .full, .col-title-product .full { display: block; }
+    .col-url { min-width: 200px; max-width: 320px; }
+    .col-url a { color: var(--accent); text-decoration: none; font-size: 0.85rem; word-break: break-all; display: inline-block; max-width: 100%; }
+    .col-url a:hover { text-decoration: underline; }
+    .col-price { font-weight: 600; white-space: nowrap; max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+    .empty-msg { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+    .loading { padding: 2rem; text-align: center; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>商品列表</h1>
+    <p class="subtitle">按站点展示已爬取的产品页；补充后的首图、标题、价格、评分均保存在本地数据库，无需重复请求。</p>
+
+    <div class="site-bar">
+      <label for="siteSelect">站点：</label>
+      <select id="siteSelect">
+        <option value="">-- 请选择 --</option>
+      </select>
+      <button type="button" class="btn btn-primary" id="btnEnrich">补充商品详情</button>
+      <span class="status" id="status"></span>
+    </div>
+
+    <div id="content">
+      <div class="empty-msg">请先选择站点</div>
+    </div>
+  </div>
+
+  <script>
+    function getSiteId() {
+      const p = new URLSearchParams(window.location.search);
+      return p.get('site_id') || '';
+    }
+
+    const siteSelect = document.getElementById('siteSelect');
+    const btnEnrich = document.getElementById('btnEnrich');
+    const statusEl = document.getElementById('status');
+    const content = document.getElementById('content');
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    async function safeJson(r) {
+      const text = await r.text();
+      if (!text || !text.trim()) return null;
+      try { return JSON.parse(text); } catch (e) { return null; }
+    }
+
+    async function loadSites() {
+      const r = await fetch('/api/sites');
+      const data = await safeJson(r) || {};
+      const sites = data.sites || [];
+      siteSelect.innerHTML = '<option value="">-- 请选择 --</option>' +
+        sites.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name || s.id)}</option>`).join('');
+      const sid = getSiteId();
+      if (sid) siteSelect.value = sid;
+    }
+
+    async function loadProducts() {
+      const sid = siteSelect.value || getSiteId();
+      if (!sid) {
+        content.innerHTML = '<div class="empty-msg">请从<a href="/" style="color:var(--accent)">控制台</a>选择站点后打开本页，或在上方选择站点。</div>';
+        return;
+      }
+      content.innerHTML = '<div class="loading">加载中…</div>';
+      try {
+        const r = await fetch('/api/products?site_id=' + encodeURIComponent(sid));
+        const data = await safeJson(r) || {};
+        const products = data.products || [];
+        if (products.length === 0) {
+          content.innerHTML = '<div class="empty-msg">该站点暂无产品页数据，请先爬取并整理分类。</div>';
+          return;
+        }
+        const rows = products.map((p) => {
+          const img = p.image_url
+            ? `<img src="${escapeHtml(p.image_url)}" alt="" loading="lazy" onerror="this.style.display='none'">`
+            : '—';
+          const rating = [p.rating_value, p.rating_count].filter(Boolean).join(' · ') || '—';
+          let priceDisplay = p.price || '—';
+          if (typeof priceDisplay === 'string' && priceDisplay.length > 40) {
+            const first = priceDisplay.match(/\$[\d,]+\.?\d*/);
+            if (first) priceDisplay = first[0];
+            else { const n = priceDisplay.match(/[\d,]+\.?\d+/); if (n) priceDisplay = n[0]; }
+          }
+          return `
+            <tr>
+              <td class="col-img">${img}</td>
+              <td class="col-title-seo"><span class="full">${escapeHtml(p.title_seo || '')}</span></td>
+              <td class="col-title-product"><span class="full">${escapeHtml(p.title_product || '')}</span></td>
+              <td class="col-price">${escapeHtml(priceDisplay)}</td>
+              <td style="width:80px">${escapeHtml(rating)}</td>
+              <td class="col-url"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.url)}</a></td>
+            </tr>
+          `;
+        }).join('');
+        content.innerHTML = `
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th class="col-img">图片</th>
+                  <th class="col-title-seo">SEO 标题</th>
+                  <th class="col-title-product">商品标题</th>
+                  <th style="width:100px">价格</th>
+                  <th style="width:80px">评分</th>
+                  <th class="col-url">链接</th>
+                </tr>
+              </thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        `;
+      } catch (e) {
+        content.innerHTML = '<div class="empty-msg">加载失败：' + escapeHtml(e.message) + '</div>';
+      }
+    }
+
+    siteSelect.addEventListener('change', () => {
+      const sid = siteSelect.value;
+      if (sid) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('site_id', sid);
+        window.history.replaceState({}, '', url);
+      }
+      loadProducts();
+    });
+
+    btnEnrich.addEventListener('click', async () => {
+      const sid = siteSelect.value || getSiteId();
+      if (!sid) {
+        statusEl.textContent = '请先选择站点';
+        return;
+      }
+      btnEnrich.disabled = true;
+      statusEl.textContent = '正在发起补充…';
+      statusEl.className = 'status';
+      try {
+        const r = await fetch('/api/products/enrich', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ site_id: sid })
+        });
+        const data = await safeJson(r) || {};
+        if (!data.ok) {
+          statusEl.textContent = data.error || '补充失败';
+          btnEnrich.disabled = false;
+          return;
+        }
+        statusEl.textContent = '已开始补充，请稍候…';
+        statusEl.className = 'status running';
+        let t = setInterval(async () => {
+          const sr = await fetch('/api/products/enrich/status');
+          const s = await safeJson(sr) || {};
+          if (s.running) {
+            statusEl.textContent = '补充中… ' + (s.done || 0) + ' / ' + (s.total || 0);
+          } else {
+            clearInterval(t);
+            btnEnrich.disabled = false;
+            statusEl.textContent = s.error ? '错误: ' + s.error : '补充完成';
+            if (!s.error) loadProducts();
+          }
+        }, 1500);
+      } catch (e) {
+        statusEl.textContent = '请求失败: ' + e.message;
+        btnEnrich.disabled = false;
+      }
+    });
+
+    async function init() {
+      await loadSites();
+      const sid = getSiteId();
+      if (sid) {
+        siteSelect.value = sid;
+        await loadProducts();
+      }
+    }
+    init();
+  </script>
+</body>
+</html>

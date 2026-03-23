@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPELAB - SEO 标题分析</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #1a1a1f;
+      --border: #2d2d35;
+      --text: #e8e8ed;
+      --text-muted: #8888a0;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-block;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn:hover { background: var(--border); }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .form-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+    .form-row label { font-size: 0.9rem; color: var(--text-muted); }
+    .form-row select {
+      padding: 0.5rem 0.75rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    h1 { font-size: 1.5rem; margin: 0 0 0.5rem 0; }
+    .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; }
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+    }
+    .section-head {
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      font-size: 1rem;
+      border-bottom: 1px solid var(--border);
+    }
+    .section { overflow-x: auto; }
+    .section table { width: 100%; border-collapse: collapse; min-width: 900px; }
+    .section th {
+      text-align: left;
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+    .section td {
+      padding: 0.5rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .section tr:last-child td { border-bottom: none; }
+    .col-title { min-width: 180px; max-width: 420px; white-space: normal; word-break: break-word; }
+    .col-title .title-full { display: block; }
+    .col-url { min-width: 200px; max-width: 380px; white-space: normal; word-break: break-all; }
+    .col-url a { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
+    .col-url a:hover { text-decoration: underline; }
+    .col-score { width: 64px; font-weight: 600; vertical-align: top; }
+    .col-suggestions { font-size: 0.85rem; color: var(--text-muted); min-width: 180px; white-space: normal; }
+    .col-suggestions ul { margin: 0; padding-left: 1.2rem; }
+    .col-alternatives { font-size: 0.9rem; min-width: 220px; white-space: normal; word-break: break-word; }
+    .col-alternatives ol { margin: 0; padding-left: 1.25rem; }
+    .col-alternatives li { margin-bottom: 0.35rem; }
+    .empty-msg { text-align: center; padding: 2rem; color: var(--text-muted); }
+    .loading { padding: 2rem; text-align: center; color: var(--text-muted); }
+    .err-msg { color: #ef4444; font-size: 0.85rem; }
+    .progress-msg { color: var(--accent); font-size: 0.9rem; margin-bottom: 0.5rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>SEO 标题分析</h1>
+    <p class="subtitle">使用本地 LM Studio 对已分类页面的标题进行 SEO 评分与改进建议</p>
+    <div class="toolbar">
+      <a href="/" class="btn">← 返回控制台</a>
+      <a href="/static/classified.html" id="linkClassified" class="btn">分类数据</a>
+      <button type="button" class="btn" id="btnLoadSaved">查看已保存结果</button>
+      <div class="form-row">
+        <label for="pageType">类型</label>
+        <select id="pageType">
+          <option value="">加载中…</option>
+        </select>
+        <label for="limit">条数</label>
+        <select id="limit">
+          <option value="5">5</option>
+          <option value="10">10</option>
+          <option value="20">20</option>
+          <option value="0" selected>全部</option>
+        </select>
+        <button type="button" class="btn btn-primary" id="btnAnalyze">开始分析</button>
+      </div>
+    </div>
+    <div id="content">
+      <div class="loading">加载中…</div>
+    </div>
+  </div>
+  <script>
+    function getSiteId() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('site_id') || '';
+    }
+    const siteId = getSiteId();
+
+    const TYPE_LABELS = {
+      homepage: '首页',
+      product: '产品页',
+      collection: '分类页',
+      blog: '博客',
+      page: '单页',
+      other: '其他'
+    };
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    async function safeJson(r) {
+      const text = await r.text();
+      if (!text || !text.trim()) return null;
+      if (text.trim().toLowerCase().startsWith('<!')) return null;
+      try { return JSON.parse(text); } catch (e) { return null; }
+    }
+
+    async function loadTypes() {
+      const sel = document.getElementById('pageType');
+      if (!siteId) {
+        sel.innerHTML = '<option value="">请从控制台选择站点后打开本页</option>';
+        return;
+      }
+      try {
+        const r = await fetch('/api/classified/counts?site_id=' + encodeURIComponent(siteId));
+        const counts = await safeJson(r) || {};
+        const types = Object.keys(counts).filter(t => (counts[t] || 0) > 0).sort();
+        sel.innerHTML = types.length
+          ? types.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(TYPE_LABELS[t] || t)} (${counts[t]})</option>`).join('')
+          : '<option value="">暂无分类数据</option>';
+      } catch (e) {
+        sel.innerHTML = '<option value="">加载失败</option>';
+      }
+    }
+
+    function renderResults(results) {
+      if (!results || results.length === 0) {
+        return '<div class="empty-msg">无分析结果</div>';
+      }
+      const rows = results.map((r, i) => {
+        const err = r.error ? `<span class="err-msg">${escapeHtml(r.error)}</span>` : '';
+        const score = r.score != null ? r.score : '—';
+        const sugg = (r.suggestions || []).length
+          ? '<ul>' + (r.suggestions || []).map(s => '<li>' + escapeHtml(s) + '</li>').join('') + '</ul>'
+          : (r.error ? '' : '—');
+        const alts = (r.alternatives || []).length
+          ? '<ol>' + (r.alternatives || []).map(a => '<li>' + escapeHtml(a) + '</li>').join('') + '</ol>'
+          : (r.error ? '' : '—');
+        return `
+          <tr>
+            <td class="col-title"><span class="title-full">${escapeHtml(r.title || '')}</span></td>
+            <td class="col-url"><a href="${escapeHtml(r.url)}" target="_blank" rel="noopener">${escapeHtml(r.url || '')}</a></td>
+            <td class="col-score">${escapeHtml(String(score))}</td>
+            <td class="col-suggestions">${sugg}${err}</td>
+            <td class="col-alternatives">${alts}</td>
+          </tr>
+        `;
+      }).join('');
+      const hint = window._seoFromDb ? '<p class="subtitle" style="margin-top:0">以下为数据库中保存的最近一次分析结果</p>' : '';
+      return hint + `
+        <div class="section">
+          <div class="section-head">分析结果（${results.length} 条）</div>
+          <table>
+            <thead><tr><th class="col-title">标题</th><th class="col-url">URL</th><th class="col-score">评分</th><th class="col-suggestions">改进建议</th><th class="col-alternatives">3 个优化版本</th></tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    let seoPollTimer = null;
+
+    function stopSeoPolling() {
+      if (seoPollTimer) {
+        clearInterval(seoPollTimer);
+        seoPollTimer = null;
+      }
+      document.getElementById('btnAnalyze').disabled = false;
+    }
+
+    async function pollSeoProgress() {
+      const content = document.getElementById('content');
+      if (!siteId) return;
+      try {
+        const [statusRes, resultsRes] = await Promise.all([
+          fetch('/api/seo/status'),
+          fetch('/api/seo/results?site_id=' + encodeURIComponent(siteId) + '&limit=50000')
+        ]);
+        const status = await safeJson(statusRes) || {};
+        const data = await safeJson(resultsRes) || {};
+        const results = data.results || [];
+        window._seoFromDb = true;
+        const done = status.total_done ?? 0;
+        const total = status.total_expected ?? 0;
+        const running = status.running === true;
+        const err = status.error;
+
+        if (running) {
+          const progressHtml = '<p class="progress-msg">分析进行中… 已完成 ' + done + ' / ' + total + ' 条，下方表格将实时更新</p>';
+          content.innerHTML = progressHtml + (results.length ? renderResults(results) : '<div class="loading">等待第一批结果…</div>');
+          return;
+        }
+        stopSeoPolling();
+        if (err) {
+          content.innerHTML = '<div class="empty-msg">分析出错：' + escapeHtml(err) + '</div>' + (results.length ? renderResults(results) : '');
+          return;
+        }
+        content.innerHTML = '<p class="progress-msg">分析已完成，共 ' + total + ' 条（已保存到数据库）</p>' + (results.length ? renderResults(results) : '');
+      } catch (e) {
+        content.innerHTML = '<div class="empty-msg">轮询失败：' + escapeHtml(e.message) + '</div>';
+        stopSeoPolling();
+      }
+    }
+
+    document.getElementById('btnAnalyze').addEventListener('click', async () => {
+      const pageType = document.getElementById('pageType').value;
+      const limitVal = document.getElementById('limit').value;
+      const limit = limitVal === '' || limitVal === '0' ? 0 : (parseInt(limitVal, 10) || 10);
+      const content = document.getElementById('content');
+      const btn = document.getElementById('btnAnalyze');
+
+      if (!pageType) {
+        content.innerHTML = '<div class="empty-msg">请先在「分类数据」页整理分类，或选择有数据的类型。</div>';
+        return;
+      }
+
+      btn.disabled = true;
+      content.innerHTML = '<div class="loading">正在启动分析…</div>';
+
+      try {
+        const r = await fetch('/api/seo/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ site_id: siteId, page_type: pageType, limit }),
+        });
+        const data = await safeJson(r) || {};
+        if (r.status === 409) {
+          content.innerHTML = '<div class="empty-msg">' + escapeHtml(data.error || '分析已在运行中') + '</div>';
+          btn.disabled = false;
+          return;
+        }
+        if (!data.ok) {
+          content.innerHTML = '<div class="empty-msg">' + escapeHtml(data.error || '请求失败') + '</div>';
+          btn.disabled = false;
+          return;
+        }
+        const total = data.total ?? 0;
+        if (total === 0 && data.message) {
+          content.innerHTML = '<div class="empty-msg">' + escapeHtml(data.message) + '</div>';
+          btn.disabled = false;
+          return;
+        }
+        content.innerHTML = '<div class="loading">分析已启动，共 ' + total + ' 条，正在分批处理并实时写入数据库…</div>';
+        seoPollTimer = setInterval(pollSeoProgress, 2000);
+        await pollSeoProgress();
+      } catch (e) {
+        content.innerHTML = '<div class="empty-msg">请求失败：' + escapeHtml(e.message) + '</div>';
+        btn.disabled = false;
+      }
+    });
+
+    document.getElementById('btnLoadSaved').addEventListener('click', async () => {
+      const content = document.getElementById('content');
+      content.innerHTML = '<div class="loading">加载中…</div>';
+      window._seoFromDb = true;
+      await loadSavedResults();
+    });
+
+    async function loadSavedResults() {
+      const content = document.getElementById('content');
+      if (!siteId) {
+        content.innerHTML = '<div class="empty-msg">请从<a href="/" style="color:var(--accent)">控制台</a>选择站点后点击「SEO 标题分析」打开本页（需带 site_id 参数）。</div>';
+        return;
+      }
+      try {
+        const r = await fetch('/api/seo/results?site_id=' + encodeURIComponent(siteId) + '&limit=50000');
+        const data = await safeJson(r) || {};
+        const results = data.results || [];
+        if (results.length > 0) {
+          window._seoFromDb = true;
+          content.innerHTML = renderResults(results);
+        } else {
+          window._seoFromDb = false;
+          content.innerHTML = '<div class="empty-msg">暂无已保存的分析数据。选择页面类型与条数后点击「开始分析」，将分批调用大模型并实时展示结果（覆盖上次数据）。请确保 LM Studio 已启动（如 http://127.0.0.1:1234）并已加载模型。</div>';
+        }
+      } catch (e) {
+        content.innerHTML = '<div class="empty-msg">加载失败：' + escapeHtml(e.message) + '</div>';
+      }
+    }
+
+    async function init() {
+      if (siteId) {
+        document.getElementById('linkClassified').href = '/static/classified.html?site_id=' + encodeURIComponent(siteId);
+      }
+      await loadTypes();
+      await loadSavedResults();
+    }
+    init();
+  </script>
+</body>
+</html>

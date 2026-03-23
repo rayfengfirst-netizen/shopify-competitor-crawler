@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SPELAB - 分类数据</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #1a1a1f;
+      --border: #2d2d35;
+      --text: #e8e8ed;
+      --text-muted: #8888a0;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-weight: 500;
+      text-decoration: none;
+      display: inline-block;
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn:hover { background: var(--border); }
+    .btn-primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    h1 { font-size: 1.5rem; margin: 0 0 0.5rem 0; }
+    .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; }
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      margin-bottom: 1.25rem;
+      overflow: hidden;
+    }
+    .section-head {
+      padding: 0.75rem 1rem;
+      font-weight: 600;
+      font-size: 1rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .section-head .badge {
+      background: var(--border);
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .section table { width: 100%; border-collapse: collapse; }
+    .section th {
+      text-align: left;
+      padding: 0.5rem 1rem;
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--border);
+    }
+    .section td {
+      padding: 0.5rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .section tr:last-child td { border-bottom: none; }
+    .section .col-title { max-width: 320px; }
+    .section .col-title span { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .section .col-url a { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
+    .section .col-url a:hover { text-decoration: underline; }
+    .empty-msg { text-align: center; padding: 2rem; color: var(--text-muted); }
+    .loading { padding: 2rem; text-align: center; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>分类数据</h1>
+    <p class="subtitle">按页面类型整理：产品页（商品详情）与分类页（集合/目录）分开显示，另有博客、单页等</p>
+    <div class="toolbar">
+      <a href="/" class="btn">← 返回控制台</a>
+      <a href="/seo.html?site_id=" id="linkSeo" class="btn">SEO 标题分析</a>
+      <button type="button" class="btn btn-primary" id="btnRebuild">重新整理分类</button>
+    </div>
+    <div id="content">
+      <div class="loading">加载中…</div>
+    </div>
+  </div>
+  <script>
+    function getSiteId() {
+      const params = new URLSearchParams(window.location.search);
+      return params.get('site_id') || '';
+    }
+    const siteId = getSiteId();
+
+    const TYPE_LABELS = {
+      homepage: '首页',
+      product: '产品页（商品详情）',
+      collection: '分类页（集合/目录）',
+      blog: '博客',
+      page: '单页',
+      other: '其他'
+    };
+    const TYPE_ORDER = ['homepage', 'product', 'collection', 'blog', 'page', 'other'];
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function renderSection(type, pages) {
+      const label = TYPE_LABELS[type] || type;
+      const rows = (pages || []).map((p, i) => `
+        <tr>
+          <td>${i + 1}</td>
+          <td class="col-title"><span title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</span></td>
+          <td class="col-url"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.url)}</a></td>
+        </tr>
+      `).join('');
+      return `
+        <div class="section" data-type="${escapeHtml(type)}">
+          <div class="section-head">
+            <span>${escapeHtml(label)}</span>
+            <span class="badge">${(pages || []).length} 条</span>
+          </div>
+          ${(pages || []).length === 0
+            ? '<div class="empty-msg">暂无</div>'
+            : `<table><thead><tr><th style="width:50px">#</th><th class="col-title">Title</th><th class="col-url">URL</th></tr></thead><tbody>${rows}</tbody></table>`}
+        </div>
+      `;
+    }
+
+    async function safeJson(r) {
+      const text = await r.text();
+      if (!text || !text.trim()) return null;
+      if (text.trim().toLowerCase().startsWith('<!')) {
+        console.error('API 返回了 HTML 而非 JSON，请确认已用 python3 -m server.app 启动服务并从 http://127.0.0.1:5001 打开本页');
+        return null;
+      }
+      try { return JSON.parse(text); } catch (e) { return null; }
+    }
+
+    async function load() {
+      const content = document.getElementById('content');
+      if (!siteId) {
+        content.innerHTML = '<div class="empty-msg">请从<a href="/" style="color:var(--accent)">控制台</a>选择站点后点击「查看分类数据」打开本页（需带 site_id 参数）。</div>';
+        return;
+      }
+      try {
+        const [countsRes, pagesRes] = await Promise.all([
+          fetch('/api/classified/counts?site_id=' + encodeURIComponent(siteId)),
+          fetch('/api/classified/pages?site_id=' + encodeURIComponent(siteId) + '&limit=10000')
+        ]);
+        const ct = countsRes.headers.get('content-type') || '';
+        if (countsRes.ok && ct.includes('text/html')) {
+          content.innerHTML = '<div class="empty-msg">接口返回了 HTML 而非数据。请确认：1) 已用 python3 -m server.app 启动；2) 从 <a href="http://127.0.0.1:5001/static/classified.html" style="color:var(--accent)">http://127.0.0.1:5001/static/classified.html</a> 打开本页（不要用 file:// 或其它端口）。</div>';
+          return;
+        }
+        const counts = await safeJson(countsRes) || {};
+        const data = await safeJson(pagesRes) || {};
+        const pages = data.pages || [];
+        const byType = {};
+        TYPE_ORDER.forEach(t => { byType[t] = []; });
+        pages.forEach(p => {
+          const t = p.page_type || 'other';
+          if (byType[t]) byType[t].push(p); else byType[t] = [p];
+        });
+        const total = Object.keys(counts).length;
+        if (total === 0 && pages.length === 0) {
+          content.innerHTML = '<div class="empty-msg">尚未整理分类，请先点击「重新整理分类」。</div>';
+          return;
+        }
+        if (Object.keys(counts).length === 0 && pages.length > 0) {
+          content.innerHTML = '<div class="empty-msg">分类表为空，请点击「重新整理分类」从当前抓取数据生成。</div>';
+          return;
+        }
+        content.innerHTML = TYPE_ORDER.map(t => renderSection(t, byType[t])).join('');
+      } catch (e) {
+        content.innerHTML = '<div class="empty-msg">加载失败：' + escapeHtml(e.message) + '。请确认已用 python3 -m server.app 启动服务，并从 http://127.0.0.1:5001/static/classified.html 打开本页。</div>';
+      }
+    }
+
+    document.getElementById('btnRebuild').addEventListener('click', async () => {
+      if (!siteId) return;
+      const btn = document.getElementById('btnRebuild');
+      btn.disabled = true;
+      const content = document.getElementById('content');
+      content.innerHTML = '<div class="loading">正在整理分类…</div>';
+      try {
+        const r = await fetch('/api/classified/rebuild', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ site_id: siteId })
+        });
+        const data = await safeJson(r) || {};
+        if (data.ok) {
+          await load();
+        } else {
+          content.innerHTML = '<div class="empty-msg">整理失败：' + escapeHtml(data.error || '') + '</div>';
+        }
+      } catch (e) {
+        content.innerHTML = '<div class="empty-msg">请求失败：' + escapeHtml(e.message) + '</div>';
+      }
+      btn.disabled = false;
+    });
+
+    if (siteId) {
+      document.getElementById('linkSeo').href = '/seo.html?site_id=' + encodeURIComponent(siteId);
+    }
+    load();
+  </script>
+</body>
+</html>

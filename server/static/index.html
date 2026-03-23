@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>多站点爬取控制台</title>
+  <style>
+    :root {
+      --bg: #0f0f12;
+      --surface: #1a1a1f;
+      --border: #2d2d35;
+      --text: #e8e8ed;
+      --text-muted: #8888a0;
+      --accent: #3b82f6;
+      --accent-hover: #2563eb;
+      --success: #22c55e;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .container { max-width: 1100px; margin: 0 auto; padding: 2rem; }
+    h1 { font-size: 1.5rem; font-weight: 600; margin: 0 0 0.5rem 0; color: var(--text); }
+    .subtitle { color: var(--text-muted); font-size: 0.9rem; margin-bottom: 1rem; }
+    .site-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+      flex-wrap: wrap;
+    }
+    .site-bar label { color: var(--text-muted); font-size: 0.9rem; }
+    .site-bar select {
+      min-width: 220px;
+      padding: 0.5rem 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+    }
+    .btn {
+      padding: 0.6rem 1.2rem;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      font-weight: 500;
+      transition: background 0.15s;
+    }
+    .btn-primary { background: var(--accent); color: #fff; }
+    .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .btn:disabled { opacity: 0.6; cursor: not-allowed; }
+    .btn-secondary {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-danger { background: var(--danger); color: #fff; }
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+      flex-wrap: wrap;
+    }
+    .checkbox-inline {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .checkbox-inline input { cursor: pointer; }
+    .status { font-size: 0.9rem; color: var(--text-muted); }
+    .status.running { color: var(--success); }
+    .status.error { color: var(--danger); }
+    .table-wrap {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .table-wrap table { width: 100%; border-collapse: collapse; }
+    .table-wrap th {
+      text-align: left;
+      padding: 0.75rem 1rem;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,0.2);
+    }
+    .table-wrap td {
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.9rem;
+    }
+    .table-wrap tr:last-child td { border-bottom: none; }
+    .table-wrap tr:hover td { background: rgba(255,255,255,0.02); }
+    .table-wrap .col-title { max-width: 360px; }
+    .table-wrap .col-title .title-text {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      display: block;
+    }
+    .table-wrap .col-url a { color: var(--accent); text-decoration: none; font-size: 0.85rem; }
+    .table-wrap .col-url a:hover { text-decoration: underline; }
+    .empty { text-align: center; padding: 3rem 1rem; color: var(--text-muted); }
+    .count-badge {
+      display: inline-block;
+      padding: 0.25rem 0.6rem;
+      background: var(--border);
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.6);
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal-overlay.show { display: flex; }
+    .modal {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      min-width: 360px;
+    }
+    .modal h3 { margin: 0 0 1rem 0; font-size: 1.1rem; }
+    .modal label { display: block; margin-bottom: 0.25rem; color: var(--text-muted); font-size: 0.85rem; }
+    .modal input {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      margin-bottom: 1rem;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+    }
+    .modal .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>多站点爬取控制台</h1>
+    <p class="subtitle">按站点添加网站、爬取并查看数据；每站数据独立保存，可删除站点及其数据。</p>
+
+    <div class="site-bar">
+      <label for="siteSelect">当前站点：</label>
+      <select id="siteSelect">
+        <option value="">-- 请选择或先添加站点 --</option>
+      </select>
+      <button type="button" class="btn btn-secondary" id="btnAddSite">添加网站</button>
+      <button type="button" class="btn btn-danger" id="btnDelSite" style="display:none;">删除当前站点数据</button>
+    </div>
+
+    <div class="toolbar">
+      <button type="button" class="btn btn-primary" id="btnStart">开始爬取</button>
+      <label class="checkbox-inline" title="用 Google Custom Search 的 site: 查询补全种子，可发现 sitemap 未列出的页面；需在 .env 配置 GOOGLE_CSE_API_KEY、GOOGLE_CSE_CX">
+        <input type="checkbox" id="chkGoogleSite"> 用 Google site 搜索补全种子
+      </label>
+      <a href="#" id="linkClassified" target="_blank" class="btn btn-secondary" style="text-decoration:none;">查看分类数据</a>
+      <a href="#" id="linkProducts" target="_blank" class="btn btn-secondary" style="text-decoration:none;">商品列表</a>
+      <a href="#" id="linkSeo" target="_blank" class="btn btn-secondary" style="text-decoration:none;">SEO 标题分析</a>
+      <span class="status" id="status">请先选择站点</span>
+      <span class="count-badge" id="count">0 条</span>
+    </div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th style="width:40px">#</th>
+            <th class="col-title">Title</th>
+            <th class="col-url">URL</th>
+            <th style="width:140px">入库时间</th>
+          </tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="4" class="empty">请先选择或添加站点</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modalAdd">
+    <div class="modal">
+      <h3>添加网站</h3>
+      <label>站点 URL（如 https://www.example.com/）</label>
+      <input type="text" id="inputBaseUrl" placeholder="https://www.example.com/">
+      <label>显示名称（可选）</label>
+      <input type="text" id="inputName" placeholder="示例站点">
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btnModalCancel">取消</button>
+        <button type="button" class="btn btn-primary" id="btnModalOk">添加</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const siteSelect = document.getElementById('siteSelect');
+    const btnAddSite = document.getElementById('btnAddSite');
+    const btnDelSite = document.getElementById('btnDelSite');
+    const btnStart = document.getElementById('btnStart');
+    const statusEl = document.getElementById('status');
+    const countEl = document.getElementById('count');
+    const tbody = document.getElementById('tbody');
+    const linkClassified = document.getElementById('linkClassified');
+    const linkProducts = document.getElementById('linkProducts');
+    const linkSeo = document.getElementById('linkSeo');
+    const modalAdd = document.getElementById('modalAdd');
+    const inputBaseUrl = document.getElementById('inputBaseUrl');
+    const inputName = document.getElementById('inputName');
+    const btnModalCancel = document.getElementById('btnModalCancel');
+    const btnModalOk = document.getElementById('btnModalOk');
+
+    let pollTimer = null;
+    let sitesList = [];
+
+    function currentSiteId() {
+      const v = siteSelect.value;
+      return v || null;
+    }
+
+    function setStatus(text, className = '') {
+      statusEl.textContent = text;
+      statusEl.className = 'status ' + className;
+    }
+
+    function escapeHtml(s) {
+      if (s == null) return '';
+      const div = document.createElement('div');
+      div.textContent = s;
+      return div.innerHTML;
+    }
+
+    async function safeJson(r) {
+      const text = await r.text();
+      if (!text || !text.trim()) return null;
+      try { return JSON.parse(text); } catch (e) { return null; }
+    }
+
+    async function loadSites() {
+      const r = await fetch('/api/sites');
+      const data = await safeJson(r) || {};
+      sitesList = data.sites || [];
+      siteSelect.innerHTML = '<option value="">-- 请选择或先添加站点 --</option>' +
+        sitesList.map(s => `<option value="${escapeHtml(s.id)}">${escapeHtml(s.name || s.id)} (${s.page_count ?? 0} 条)</option>`).join('');
+      const sid = currentSiteId();
+      if (sid && !sitesList.find(s => s.id === sid)) siteSelect.value = '';
+      btnDelSite.style.display = currentSiteId() ? 'inline-block' : 'none';
+      updateLinks();
+    }
+
+    function updateLinks() {
+      const sid = currentSiteId();
+      linkClassified.href = sid ? '/static/classified.html?site_id=' + encodeURIComponent(sid) : '#';
+      linkProducts.href = sid ? '/products.html?site_id=' + encodeURIComponent(sid) : '#';
+      linkSeo.href = sid ? '/seo.html?site_id=' + encodeURIComponent(sid) : '#';
+    }
+
+    function renderTable(pages) {
+      if (!pages || pages.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty">暂无数据，点击「开始爬取」在本地运行爬虫</td></tr>';
+        return;
+      }
+      tbody.innerHTML = pages.map((p, i) => `
+        <tr>
+          <td>${p.id}</td>
+          <td class="col-title"><span class="title-text" title="${escapeHtml(p.title)}">${escapeHtml(p.title)}</span></td>
+          <td class="col-url"><a href="${escapeHtml(p.url)}" target="_blank" rel="noopener">${escapeHtml(p.url)}</a></td>
+          <td>${escapeHtml(p.created_at || '')}</td>
+        </tr>
+      `).join('');
+    }
+
+    async function fetchStatus() {
+      const sid = currentSiteId();
+      const r = await fetch('/api/crawl/status' + (sid ? '?site_id=' + encodeURIComponent(sid) : ''));
+      const s = await safeJson(r);
+      return s || { running: false, site_id: null, count: 0, error: null };
+    }
+
+    async function fetchPages() {
+      const sid = currentSiteId();
+      if (!sid) return { pages: [], total: 0 };
+      const r = await fetch('/api/pages?site_id=' + encodeURIComponent(sid));
+      const data = await safeJson(r);
+      return data || { pages: [], total: 0 };
+    }
+
+    async function loadPages() {
+      const sid = currentSiteId();
+      if (!sid) {
+        countEl.textContent = '0 条';
+        tbody.innerHTML = '<tr><td colspan="4" class="empty">请先选择或添加站点</td></tr>';
+        return;
+      }
+      try {
+        const data = await fetchPages();
+        countEl.textContent = (data.total ?? data.pages?.length ?? 0) + ' 条';
+        renderTable(data.pages || []);
+      } catch (e) {
+        setStatus('拉取列表失败: ' + e.message, 'error');
+      }
+    }
+
+    function startPolling() {
+      if (pollTimer) return;
+      function tick() {
+        fetchStatus().then(s => {
+          const sid = currentSiteId();
+          if (s.running && s.site_id) {
+            if (sid !== s.site_id) {
+              siteSelect.value = s.site_id;
+              btnDelSite.style.display = 'inline-block';
+              updateLinks();
+            }
+            countEl.textContent = (s.count ?? 0) + ' 条';
+            setStatus('爬取中…', 'running');
+            btnStart.disabled = true;
+          } else {
+            if (sid) countEl.textContent = (s.count ?? 0) + ' 条';
+            setStatus(s.error ? '错误: ' + s.error : '就绪', s.error ? 'error' : '');
+            btnStart.disabled = !sid;
+            if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+          }
+        }).catch(() => {});
+        fetchPages().then(data => renderTable(data.pages || []));
+      }
+      tick();
+      setTimeout(tick, 400);
+      pollTimer = setInterval(tick, 1000);
+    }
+
+    siteSelect.addEventListener('change', () => {
+      btnDelSite.style.display = currentSiteId() ? 'inline-block' : 'none';
+      updateLinks();
+      loadPages();
+      const sid = currentSiteId();
+      if (sid) fetchStatus().then(s => { countEl.textContent = (s.count ?? 0) + ' 条'; });
+      else setStatus('请先选择站点');
+    });
+
+    btnAddSite.addEventListener('click', () => {
+      inputBaseUrl.value = '';
+      inputName.value = '';
+      modalAdd.classList.add('show');
+    });
+    btnModalCancel.addEventListener('click', () => modalAdd.classList.remove('show'));
+    btnModalOk.addEventListener('click', async () => {
+      const base_url = inputBaseUrl.value.trim();
+      if (!base_url) { alert('请填写站点 URL'); return; }
+      try {
+        const r = await fetch('/api/sites', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ base_url, name: inputName.value.trim() || undefined })
+        });
+        const data = await safeJson(r);
+        if (data.ok) {
+          modalAdd.classList.remove('show');
+          await loadSites();
+          siteSelect.value = data.site?.id || '';
+          siteSelect.dispatchEvent(new Event('change'));
+        } else {
+          alert(data.error || '添加失败');
+        }
+      } catch (e) {
+        alert('请求失败: ' + e.message);
+      }
+    });
+
+    btnDelSite.addEventListener('click', async () => {
+      const sid = currentSiteId();
+      if (!sid) return;
+      if (!confirm('确定要删除站点「' + sid + '」及其全部数据吗？此操作不可恢复。')) return;
+      try {
+        const r = await fetch('/api/sites/' + encodeURIComponent(sid), { method: 'DELETE' });
+        const data = await safeJson(r);
+        if (data.ok) {
+          await loadSites();
+          siteSelect.value = '';
+          siteSelect.dispatchEvent(new Event('change'));
+        } else {
+          alert(data.error || '删除失败');
+        }
+      } catch (e) {
+        alert('请求失败: ' + e.message);
+      }
+    });
+
+    btnStart.addEventListener('click', async () => {
+      const sid = currentSiteId();
+      if (!sid) { setStatus('请先选择站点', 'error'); return; }
+      try {
+        const useGoogleSite = document.getElementById('chkGoogleSite').checked;
+        const r = await fetch('/api/crawl/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ site_id: sid, use_google_site: useGoogleSite })
+        });
+        const data = await safeJson(r) || {};
+        if (data.ok) {
+          setStatus('已启动，正在爬取…', 'running');
+          btnStart.disabled = true;
+          startPolling();
+        } else {
+          setStatus(data.message || '启动失败', 'error');
+        }
+      } catch (e) {
+        setStatus('请求失败: ' + e.message, 'error');
+      }
+    });
+
+    async function init() {
+      await loadSites();
+      const s = await fetchStatus();
+      if (s.running && s.site_id) {
+        siteSelect.value = s.site_id;
+        btnDelSite.style.display = 'inline-block';
+        updateLinks();
+        countEl.textContent = (s.count ?? 0) + ' 条';
+        setStatus('爬取中…', 'running');
+        btnStart.disabled = true;
+        await loadPages();
+        startPolling();
+      } else {
+        const sid = currentSiteId();
+        if (sid) {
+          await loadPages();
+          countEl.textContent = (s.count ?? 0) + ' 条';
+          setStatus('就绪');
+        } else {
+          setStatus('请先选择站点');
+        }
+      }
+    }
+    init();
+  </script>
+</body>
+</html>

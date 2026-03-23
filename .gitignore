@@ -1,0 +1,10 @@
+# 环境变量，含 API Key，勿提交
+.env
+# 本地数据与输出
+data/
+output/
+logs/
+__pycache__/
+*.pyc
+.venv/
+venv/
